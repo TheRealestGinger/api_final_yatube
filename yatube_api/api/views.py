@@ -1,8 +1,5 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import filters
-from rest_framework import permissions
-from rest_framework import viewsets
-from rest_framework import serializers
+from rest_framework import filters, permissions, viewsets, generics
 from rest_framework.pagination import LimitOffsetPagination
 
 from posts.models import Comment, Group, Post, Follow
@@ -20,11 +17,13 @@ class PostViewSet(viewsets.ModelViewSet):
 
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = (OwnerOrReadOnly,)
+    permission_classes = (
+        OwnerOrReadOnly,
+        permissions.IsAuthenticatedOrReadOnly
+    )
     pagination_class = LimitOffsetPagination
 
     def perform_create(self, serializer):
-        """Добавляет автора к посту."""
         serializer.save(author=self.request.user)
 
 
@@ -40,25 +39,28 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
-    permission_classes = (OwnerOrReadOnly,)
+    permission_classes = (
+        OwnerOrReadOnly,
+        permissions.IsAuthenticatedOrReadOnly
+    )
 
     def get_queryset(self):
-        return self.get_post(self.kwargs['post_id']).comments.all()
+        return self.get_post().comments.all()
 
     def perform_create(self, serializer):
-        """Добавляет автора к комментарию."""
         serializer.save(
             author=self.request.user,
-            post=self.get_post(self.kwargs['post_id'])
+            post=self.get_post()
         )
 
-    def get_post(self, id):
-        return get_object_or_404(Post, id=id)
+    def get_post(self):
+        return get_object_or_404(Post, id=self.kwargs['post_id'])
 
 
-class FollowViewSet(viewsets.ModelViewSet):
-    """ViewSet для подписок."""
+class FollowList(generics.ListCreateAPIView):
+    """Generic View для подписок."""
 
+    queryset = Follow.objects.all()
     serializer_class = FollowSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (filters.SearchFilter,)
@@ -68,13 +70,4 @@ class FollowViewSet(viewsets.ModelViewSet):
         return self.request.user.follower.all()
 
     def perform_create(self, serializer):
-        if self.request.user == serializer.validated_data['following']:
-            raise serializers.ValidationError(
-                "Вы не можете подписаться на себя."
-            )
-        if Follow.objects.filter(
-            user=self.request.user,
-            following=serializer.validated_data['following']
-        ).exists():
-            raise serializers.ValidationError("Вы уже подписаны.")
         serializer.save(user=self.request.user)

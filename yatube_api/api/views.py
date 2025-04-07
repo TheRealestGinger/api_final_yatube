@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import filters, permissions, viewsets, generics
+from rest_framework import filters, mixins, permissions, viewsets, generics
 from rest_framework.pagination import LimitOffsetPagination
 
 from posts.models import Comment, Group, Post, Follow
@@ -57,8 +57,12 @@ class CommentViewSet(viewsets.ModelViewSet):
         return get_object_or_404(Post, id=self.kwargs['post_id'])
 
 
-class FollowList(generics.ListCreateAPIView):
-    """Generic View для подписок."""
+class FollowViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet
+):
+    """ViewSet для подписок."""
 
     queryset = Follow.objects.all()
     serializer_class = FollowSerializer
